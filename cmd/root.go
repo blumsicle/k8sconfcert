@@ -53,32 +53,58 @@ var rootCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		kubeconfig, _ := cmd.Flags().GetString("kubeconfig")
-		output, _ := cmd.Flags().GetString("output")
+		ca, _ := cmd.Flags().GetString("ca")
+		cert, _ := cmd.Flags().GetString("cert")
+		key, _ := cmd.Flags().GetString("key")
 
 		kubeconfig = os.ExpandEnv(kubeconfig)
-		output = os.ExpandEnv(output)
+		ca = os.ExpandEnv(ca)
+		cert = os.ExpandEnv(cert)
+		key = os.ExpandEnv(key)
 
 		log.Debug().Str("kubeconfig", kubeconfig).Send()
-		log.Debug().Str("output", output).Send()
+		log.Debug().Str("ca", ca).Send()
+		log.Debug().Str("cert", cert).Send()
+		log.Debug().Str("key", key).Send()
 
 		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
 			return err
 		}
 
-		fd, err := os.Create(output)
-		if err != nil {
+		if err := writeFile(ca, config.CAData); err != nil {
 			return err
 		}
-		defer fd.Close()
 
-		_, err = fd.Write(config.CAData)
-		if err != nil {
+		if err := writeFile(cert, config.CertData); err != nil {
+			return err
+		}
+
+		if err := writeFile(key, config.KeyData); err != nil {
 			return err
 		}
 
 		return nil
 	},
+}
+
+func writeFile(file string, data []byte) error {
+	if file == "" {
+		return nil
+	}
+
+	fd, err := os.Create(file)
+	if err != nil {
+		return err
+	}
+	defer fd.Close()
+
+	_, err = fd.Write(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func Execute() {
@@ -91,5 +117,7 @@ func Execute() {
 func init() {
 	rootCmd.Flags().StringP("log-level", "l", "info", "log level")
 	rootCmd.Flags().StringP("kubeconfig", "k", "$HOME/.kube/config", "kubeconfig file")
-	rootCmd.Flags().StringP("output", "o", "./ca.crt", "output file")
+	rootCmd.Flags().String("ca", "./ca.crt", "ca output file")
+	rootCmd.Flags().String("cert", "", "cert output file")
+	rootCmd.Flags().String("key", "", "key output file")
 }
